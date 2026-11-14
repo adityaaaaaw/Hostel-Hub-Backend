@@ -1,0 +1,32 @@
+# HostelHub — .gitignore
+# Files and folders listed here will NOT be tracked by Git.
+
+# ── Node.js ──────────────────────────────────────────────────────────────────
+# The node_modules folder contains all installed packages.
+# It can be re-created any time by running "npm install", so we never commit it.
+node_modules/
+
+# ── Database ─────────────────────────────────────────────────────────────────
+# The SQLite database file holds live data. We don't want to accidentally
+# overwrite a teammate's local database when merging code.
+data/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ── Environment Variables ─────────────────────────────────────────────────────
+# .env files often contain secrets like API keys or passwords.
+# Never commit these to a public repository.
+.env
+.env.local
+
+# ── OS Generated Files ───────────────────────────────────────────────────────
+.DS_Store        # macOS folder metadata
+Thumbs.db        # Windows thumbnail cache
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*

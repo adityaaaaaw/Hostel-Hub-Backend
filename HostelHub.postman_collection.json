@@ -1,0 +1,1221 @@
+{
+  "info": {
+    "name": "HostelHub API Collection",
+    "_postman_id": "hostelhub-api-collection-v1",
+    "description": "Complete API collection for HostelHub — a backend system for managing hostel rooms, residents, and allotments.\n\nBase URL: http://localhost:3000\n\nFolders:\n  🚪 Rooms       — 6 endpoints (CRUD + soft delete + restore)\n  👤 Residents   — 3 endpoints\n  🔗 Allotments  — 4 endpoints (with SQL JOIN responses)\n\nAll endpoints verified against source code.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000",
+      "type": "string",
+      "description": "Base URL of the HostelHub API server"
+    },
+    {
+      "key": "roomId",
+      "value": "1",
+      "type": "string",
+      "description": "ID of a room to use in single-room requests. Update after creating a room."
+    },
+    {
+      "key": "residentId",
+      "value": "1",
+      "type": "string",
+      "description": "ID of a resident to use in single-resident requests."
+    },
+    {
+      "key": "allotmentId",
+      "value": "1",
+      "type": "string",
+      "description": "ID of an allotment. Update after POST /allotments."
+    }
+  ],
+  "item": [
+    {
+      "name": "🚪 Rooms",
+      "description": "CRUD operations for hostel rooms.\nSoft-delete is used instead of permanent deletion to preserve allotment history.",
+      "item": [
+        {
+          "name": "GET All Rooms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms"]
+            },
+            "description": "Returns all active rooms (is_deleted = 0).\n\nOptionally filter by block:\n  GET /rooms?block=A"
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Response is JSON', function () {",
+                  "  pm.response.to.be.json;",
+                  "});",
+                  "",
+                  "pm.test('success is true', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('data is an array', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('count matches data length', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.count).to.equal(body.data.length);",
+                  "});",
+                  "",
+                  "// Auto-save first room ID into collection variable",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length > 0) {",
+                  "  pm.collectionVariables.set('roomId', body.data[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET All Rooms — Filter by Block",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms?block=A",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms"],
+              "query": [
+                {
+                  "key": "block",
+                  "value": "A",
+                  "description": "Filter rooms by block name (case-insensitive)"
+                }
+              ]
+            },
+            "description": "Returns only rooms in the specified block. The filter is case-insensitive (?block=a and ?block=A return the same results)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('All rooms belong to Block A', function () {",
+                  "  const body = pm.response.json();",
+                  "  body.data.forEach(function (room) {",
+                  "    pm.expect(room.block.toUpperCase()).to.equal('A');",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Room by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}"]
+            },
+            "description": "Returns a single active room by its ID.\nReturns 404 if the room doesn't exist or is soft-deleted."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Room has id, name, block, is_deleted', function () {",
+                  "  const room = pm.response.json().data;",
+                  "  pm.expect(room).to.have.property('id');",
+                  "  pm.expect(room).to.have.property('name');",
+                  "  pm.expect(room).to.have.property('block');",
+                  "  pm.expect(room).to.have.property('is_deleted');",
+                  "});",
+                  "",
+                  "pm.test('is_deleted is 0 (room is active)', function () {",
+                  "  pm.expect(pm.response.json().data.is_deleted).to.equal(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Room by ID — 404 Not Found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/999",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "999"]
+            },
+            "description": "Demonstrates the 404 response when a room ID does not exist."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('success is false', function () {",
+                  "  pm.expect(pm.response.json().success).to.be.false;",
+                  "});",
+                  "",
+                  "pm.test('message mentions the id', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('999');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Room by ID — 400 Invalid ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/abc",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "abc"]
+            },
+            "description": "Demonstrates the 400 response when a non-numeric ID is supplied."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('success is false', function () {",
+                  "  pm.expect(pm.response.json().success).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"301\",\n  \"block\": \"C\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms"]
+            },
+            "description": "Creates a new room. Both name and block are required.\nBlock is normalized to uppercase.\nReturns 201 with the created room object."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 Created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('success is true', function () {",
+                  "  pm.expect(pm.response.json().success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('Room data is returned', function () {",
+                  "  const room = pm.response.json().data;",
+                  "  pm.expect(room.name).to.equal('301');",
+                  "  pm.expect(room.block).to.equal('C');",
+                  "  pm.expect(room.is_deleted).to.equal(0);",
+                  "});",
+                  "",
+                  "// Save the new room's ID for use in other requests",
+                  "const newId = pm.response.json().data.id;",
+                  "pm.collectionVariables.set('roomId', newId);",
+                  "console.log('Saved roomId:', newId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Room — 400 Missing Name",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"block\": \"C\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms"]
+            },
+            "description": "Validation failure: name is missing."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('message says name is required', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('name');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT Update Room",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"301-Updated\",\n  \"block\": \"C\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}"]
+            },
+            "description": "Updates the name and block of an existing active room.\nBoth fields are required. Returns the updated room object."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Room name was updated', function () {",
+                  "  pm.expect(pm.response.json().data.name).to.equal('301-Updated');",
+                  "});",
+                  "",
+                  "pm.test('message confirms update', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('updated');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "PUT Update Room — 404 Not Found",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"999\",\n  \"block\": \"Z\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rooms/999",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "999"]
+            },
+            "description": "Demonstrates 404 when updating a non-existent room."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Room (Soft Delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}"]
+            },
+            "description": "Soft-deletes a room by setting is_deleted = 1.\nThe row stays in the database — allotment history is preserved.\nReturns 404 if already deleted."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('message mentions soft-deleted', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('soft-deleted');",
+                  "});",
+                  "",
+                  "pm.test('success is true', function () {",
+                  "  pm.expect(pm.response.json().success).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Room — 404 Already Deleted",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}"]
+            },
+            "description": "Run this AFTER the soft-delete above. Demonstrates 404 when trying to delete an already-deleted room."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('message mentions already deleted', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('already deleted');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Restore Room",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "restore"]
+            },
+            "description": "Restores a soft-deleted room by setting is_deleted = 0.\nReturns 404 if the room is not currently deleted."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('message mentions restored', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('restored');",
+                  "});",
+                  "",
+                  "pm.test('is_deleted is 0 after restore', function () {",
+                  "  pm.expect(pm.response.json().data.is_deleted).to.equal(0);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Restore Room — 404 Not Deleted",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "restore"]
+            },
+            "description": "Run this AFTER the restore above. Demonstrates 404 when trying to restore an already-active room."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "👤 Residents",
+      "description": "Endpoints for managing hostel residents.",
+      "item": [
+        {
+          "name": "GET All Residents",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/residents",
+              "host": ["{{baseUrl}}"],
+              "path": ["residents"]
+            },
+            "description": "Returns all residents in the database."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('data is an array', function () {",
+                  "  pm.expect(pm.response.json().data).to.be.an('array');",
+                  "});",
+                  "",
+                  "pm.test('count matches data length', function () {",
+                  "  const body = pm.response.json();",
+                  "  pm.expect(body.count).to.equal(body.data.length);",
+                  "});",
+                  "",
+                  "// Auto-save first resident ID",
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.length > 0) {",
+                  "  pm.collectionVariables.set('residentId', body.data[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Resident by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/residents/{{residentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["residents", "{{residentId}}"]
+            },
+            "description": "Returns a single resident by ID.\nReturns 404 if not found."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('Resident has id, name, email', function () {",
+                  "  const r = pm.response.json().data;",
+                  "  pm.expect(r).to.have.property('id');",
+                  "  pm.expect(r).to.have.property('name');",
+                  "  pm.expect(r).to.have.property('email');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Resident by ID — 404 Not Found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/residents/999",
+              "host": ["{{baseUrl}}"],
+              "path": ["residents", "999"]
+            },
+            "description": "Demonstrates 404 when resident ID doesn't exist."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Resident by ID — 400 Invalid ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/residents/abc",
+              "host": ["{{baseUrl}}"],
+              "path": ["residents", "abc"]
+            },
+            "description": "Demonstrates 400 when a non-numeric ID is supplied."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Resident",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Sneha Iyer\",\n  \"email\": \"sneha@hostelhub.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/residents",
+              "host": ["{{baseUrl}}"],
+              "path": ["residents"]
+            },
+            "description": "Creates a new resident. Both name and email are required.\nEmail must be valid format and unique.\nReturns 201 on success."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 Created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('Resident data returned', function () {",
+                  "  const r = pm.response.json().data;",
+                  "  pm.expect(r).to.have.property('id');",
+                  "  pm.expect(r.name).to.equal('Sneha Iyer');",
+                  "  pm.expect(r.email).to.equal('sneha@hostelhub.com');",
+                  "});",
+                  "",
+                  "// Save new resident ID",
+                  "pm.collectionVariables.set('residentId', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Resident — 400 Missing Name",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"noname@hostelhub.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/residents",
+              "host": ["{{baseUrl}}"],
+              "path": ["residents"]
+            },
+            "description": "Validation failure: name field is missing."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('error message mentions name', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('Name');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Resident — 400 Invalid Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Bad Email\",\n  \"email\": \"notanemail\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/residents",
+              "host": ["{{baseUrl}}"],
+              "path": ["residents"]
+            },
+            "description": "Validation failure: email does not contain @ and ."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Resident — 409 Duplicate Email",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Another Sneha\",\n  \"email\": \"sneha@hostelhub.com\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/residents",
+              "host": ["{{baseUrl}}"],
+              "path": ["residents"]
+            },
+            "description": "Run AFTER POST Create Resident. Demonstrates 409 Conflict when the same email is submitted again."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409 Conflict', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('error message mentions duplicate', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('already exists');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🔗 Allotments",
+      "description": "Endpoints for assigning residents to rooms.\nResponses use SQL JOIN to include resident name, room name, and block.",
+      "item": [
+        {
+          "name": "GET All Allotments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/allotments",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments"]
+            },
+            "description": "Returns all allotments with enriched JOIN data.\nSoft-deleted rooms are automatically excluded."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('data is an array', function () {",
+                  "  pm.expect(pm.response.json().data).to.be.an('array');",
+                  "});",
+                  "",
+                  "// If allotments exist, verify JOIN fields are present",
+                  "const body = pm.response.json();",
+                  "if (body.data.length > 0) {",
+                  "  pm.test('JOIN fields present in each allotment', function () {",
+                  "    const a = body.data[0];",
+                  "    pm.expect(a).to.have.property('resident_name');",
+                  "    pm.expect(a).to.have.property('room_name');",
+                  "    pm.expect(a).to.have.property('block');",
+                  "  });",
+                  "  pm.collectionVariables.set('allotmentId', body.data[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Allotment by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/allotments/{{allotmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments", "{{allotmentId}}"]
+            },
+            "description": "Returns a single allotment with JOIN data.\nReturns 404 if not found or if the linked room is soft-deleted."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('All JOIN fields present', function () {",
+                  "  const a = pm.response.json().data;",
+                  "  pm.expect(a).to.have.property('id');",
+                  "  pm.expect(a).to.have.property('resident_id');",
+                  "  pm.expect(a).to.have.property('resident_name');",
+                  "  pm.expect(a).to.have.property('room_id');",
+                  "  pm.expect(a).to.have.property('room_name');",
+                  "  pm.expect(a).to.have.property('block');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Allotment by ID — 404 Not Found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/allotments/999",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments", "999"]
+            },
+            "description": "Demonstrates 404 when allotment ID doesn't exist."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET Allotment by ID — 400 Invalid ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/allotments/abc",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments", "abc"]
+            },
+            "description": "Demonstrates 400 when a non-numeric ID is supplied."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Allotment",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resident_id\": 1,\n  \"room_id\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/allotments",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments"]
+            },
+            "description": "Creates a new allotment (assigns a resident to a room).\n\nValidation order:\n1. resident_id and room_id must be positive integers\n2. Resident must exist\n3. Room must exist and not be soft-deleted\n4. The same (resident_id, room_id) pair must not already exist\n\nReturns 201 with enriched JOIN data."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201 Created', function () {",
+                  "  pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test('JOIN fields present in response', function () {",
+                  "  const a = pm.response.json().data;",
+                  "  pm.expect(a).to.have.property('resident_name');",
+                  "  pm.expect(a).to.have.property('room_name');",
+                  "  pm.expect(a).to.have.property('block');",
+                  "});",
+                  "",
+                  "// Save allotment ID for later requests",
+                  "pm.collectionVariables.set('allotmentId', pm.response.json().data.id);",
+                  "console.log('Saved allotmentId:', pm.response.json().data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Allotment — 400 Missing resident_id",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_id\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/allotments",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments"]
+            },
+            "description": "Validation failure: resident_id is missing."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', function () {",
+                  "  pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('message mentions resident_id', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('resident_id');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Allotment — 404 Resident Not Found",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resident_id\": 999,\n  \"room_id\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/allotments",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments"]
+            },
+            "description": "Demonstrates 404 when resident_id doesn't match any resident."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('message mentions resident', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('Resident');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Allotment — 404 Room Not Found or Deleted",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resident_id\": 1,\n  \"room_id\": 999\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/allotments",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments"]
+            },
+            "description": "Demonstrates 404 when room_id doesn't exist or the room is soft-deleted."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});",
+                  "",
+                  "pm.test('message mentions room', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('Room');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST Create Allotment — 409 Duplicate",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resident_id\": 1,\n  \"room_id\": 1\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/allotments",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments"]
+            },
+            "description": "Run AFTER POST Create Allotment. Demonstrates 409 Conflict when the same resident-room pair is submitted again."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 409 Conflict', function () {",
+                  "  pm.response.to.have.status(409);",
+                  "});",
+                  "",
+                  "pm.test('message mentions already allotted', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('already allotted');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Allotment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/allotments/{{allotmentId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments", "{{allotmentId}}"]
+            },
+            "description": "Hard-deletes an allotment (physically removes the row).\nThe resident and room records are NOT affected.\nReturns 404 if the allotment doesn't exist."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('success is true', function () {",
+                  "  pm.expect(pm.response.json().success).to.be.true;",
+                  "});",
+                  "",
+                  "pm.test('message mentions removed', function () {",
+                  "  pm.expect(pm.response.json().message).to.include('removed');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "DELETE Allotment — 404 Not Found",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/allotments/999",
+              "host": ["{{baseUrl}}"],
+              "path": ["allotments", "999"]
+            },
+            "description": "Demonstrates 404 when the allotment doesn't exist."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', function () {",
+                  "  pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
